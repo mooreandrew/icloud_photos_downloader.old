@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from __future__ import print_function
+from future.moves.urllib.parse import urlencode
 import click
 import os
 import sys
@@ -7,6 +8,7 @@ import socket
 import requests
 import time
 import itertools
+import json
 from tqdm import tqdm
 from dateutil.parser import parse
 
@@ -52,6 +54,9 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
               help='Only prints the filenames of all files that will be downloaded. ' + \
                 '(Does not download any files.)',
               is_flag=True)
+@click.option('--delete-if-downloaded',
+              help='Delete the file after downloading',
+              is_flag=False)
 
 @click.option('--smtp-username',
               help='Your SMTP username, for sending email notifications when two-step authentication expires.',
@@ -79,7 +84,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 def download(directory, username, password, size, recent, \
     until_found, download_videos, force_size, auto_delete, \
-    only_print_filenames, \
+    only_print_filenames, delete_if_downloaded, \
     smtp_username, smtp_password, smtp_host, smtp_port, smtp_no_tls, \
     notification_email):
     """Download all iCloud photos to a local directory"""
@@ -150,12 +155,17 @@ def download(directory, username, password, size, recent, \
                         consecutive_files_found += 1
                     if not only_print_filenames:
                         progress_bar.set_description("%s already exists." % truncate_middle(download_path, 96))
+                        if delete_if_downloaded:
+                            move_picture_to_recently_deleted(icloud, photo)
                     break
 
                 if only_print_filenames:
                     print(download_path)
                 else:
                     download_photo(photo, download_path, size, force_size, download_dir, progress_bar)
+                    if delete_if_downloaded:
+                        move_picture_to_recently_deleted(icloud, photo)
+
 
                 if until_found is not None:
                     consecutive_files_found = 0
@@ -250,6 +260,31 @@ def download_photo(photo, download_path, size, force_size, download_dir, progres
     else:
         tqdm.write("Could not download %s! Maybe try again later." % photo.filename)
 
+
+def move_picture_to_recently_deleted(icloud, photo):
+    url = '{}/records/modify?{}'.format(icloud.photos._service_endpoint, urlencode(icloud.photos.params))
+    headers = {'Content-type': 'text/plain'}
+
+    mr = {'fields': {'isDeleted': {'value': 1}}}
+    mr['recordChangeTag'] = photo._asset_record['recordChangeTag']
+    mr['recordName'] = photo._asset_record['recordName']
+
+    mr['recordType'] = 'CPLAsset'
+    op = dict(
+        operationType='update',
+        record=mr,
+    )
+    operations = []
+    operations.append(op)
+
+    post_data = json.dumps(dict(
+        atomic=True,
+        desiredKeys=['isDeleted'],
+        operations=operations,
+        zoneID={'zoneName': 'PrimarySync'},
+    ))
+
+    icloud.photos.session.post(url, data=post_data, headers=headers).json()
 
 if __name__ == '__main__':
     download()
