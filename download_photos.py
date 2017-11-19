@@ -150,7 +150,7 @@ def download(directory, username, password, size, recent, \
                 current_date = datetime.datetime.now(datetime.timezone.utc)
                 created_date = photo.created
 
-                date_path = '{:%Y/%m/%d}'.format(created_date)
+                date_path = '{:%Y%m - %B %Y}'.format(created_date)
                 download_dir = os.path.join(directory, date_path)
 
                 if not os.path.exists(download_dir):
@@ -250,6 +250,7 @@ def download_photo(photo, download_path, size, force_size, download_dir, progres
                     for chunk in download_url.iter_content(chunk_size=1024):
                         if chunk:
                             file.write(chunk)
+                os.utime(download_path, (int(photo.created.strftime('%s')), int(photo.created.strftime('%s'))))
                 break
 
             else:
