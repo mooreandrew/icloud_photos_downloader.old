@@ -9,6 +9,7 @@ import requests
 import time
 import itertools
 import json
+import datetime
 from tqdm import tqdm
 from dateutil.parser import parse
 
@@ -57,6 +58,11 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--delete-if-downloaded',
               help='Delete the file after downloading',
               is_flag=False)
+@click.option('--download-delete-age',
+              help='Specify the age of the file you want to delete in days.' + \
+                   '(Only used if --delete-if-downloaded is set)',
+                   type=click.IntRange(0),
+              default=30)
 
 @click.option('--smtp-username',
               help='Your SMTP username, for sending email notifications when two-step authentication expires.',
@@ -84,7 +90,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 def download(directory, username, password, size, recent, \
     until_found, download_videos, force_size, auto_delete, \
-    only_print_filenames, delete_if_downloaded, \
+    only_print_filenames, delete_if_downloaded, download_delete_age, \
     smtp_username, smtp_password, smtp_host, smtp_port, smtp_no_tls, \
     notification_email):
     """Download all iCloud photos to a local directory"""
@@ -141,6 +147,7 @@ def download(directory, username, password, size, recent, \
                             "Skipping %s, only downloading photos." % photo.filename)
                     continue
 
+                current_date = datetime.datetime.now(datetime.timezone.utc)
                 created_date = photo.created
 
                 date_path = '{:%Y/%m/%d}'.format(created_date)
@@ -155,7 +162,7 @@ def download(directory, username, password, size, recent, \
                         consecutive_files_found += 1
                     if not only_print_filenames:
                         progress_bar.set_description("%s already exists." % truncate_middle(download_path, 96))
-                        if delete_if_downloaded:
+                        if delete_if_downloaded and (current_date - created_date).days >  download_delete_age:
                             move_picture_to_recently_deleted(icloud, photo)
                     break
 
@@ -163,9 +170,8 @@ def download(directory, username, password, size, recent, \
                     print(download_path)
                 else:
                     download_photo(photo, download_path, size, force_size, download_dir, progress_bar)
-                    if delete_if_downloaded:
+                    if delete_if_downloaded and (current_date - created_date).days > download_delete_age:
                         move_picture_to_recently_deleted(icloud, photo)
-
 
                 if until_found is not None:
                     consecutive_files_found = 0
