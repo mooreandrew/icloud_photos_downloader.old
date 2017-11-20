@@ -61,8 +61,11 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 @click.option('--download-delete-age',
               help='Specify the age of the file you want to delete in days.' + \
                    '(Only used if --delete-if-downloaded is set)',
-                   type=click.IntRange(0),
+              type=click.IntRange(0),
               default=30)
+@click.option('--download-suffix',
+              help='Set the suffix of the download file',
+              default='')
 
 @click.option('--smtp-username',
               help='Your SMTP username, for sending email notifications when two-step authentication expires.',
@@ -90,7 +93,7 @@ CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 def download(directory, username, password, size, recent, \
     until_found, download_videos, force_size, auto_delete, \
-    only_print_filenames, delete_if_downloaded, download_delete_age, \
+    only_print_filenames, delete_if_downloaded, download_delete_age, download_suffix, \
     smtp_username, smtp_password, smtp_host, smtp_port, smtp_no_tls, \
     notification_email):
     """Download all iCloud photos to a local directory"""
@@ -156,7 +159,7 @@ def download(directory, username, password, size, recent, \
                 if not os.path.exists(download_dir):
                     os.makedirs(download_dir)
 
-                download_path = local_download_path(photo, size, download_dir)
+                download_path = local_download_path(photo, size, download_dir, download_suffix)
                 if os.path.isfile(download_path):
                     if until_found is not None:
                         consecutive_files_found += 1
@@ -205,7 +208,7 @@ def download(directory, username, password, size, recent, \
                 date_path = '{:%Y/%m/%d}'.format(created_date)
                 download_dir = os.path.join(directory, date_path)
 
-                filename = filename_with_size(media, size)
+                filename = filename_with_size(media, size, download_suffix)
                 path = os.path.join(download_dir, filename)
 
                 if os.path.exists(path):
@@ -220,13 +223,17 @@ def truncate_middle(s, n):
     if n_2 < 1: n_2 = 1
     return '{0}...{1}'.format(s[:n_1], s[-n_2:])
 
-def filename_with_size(photo, size):
-    return photo.filename.encode('utf-8') \
-        .decode('ascii', 'ignore').replace('.', '-%s.' % size)
+def filename_with_size(photo, size, download_suffix):
 
-def local_download_path(photo, size, download_dir):
+    if download_suffix:
+        download_suffix = '-' + download_suffix
+
+    return photo.filename.encode('utf-8') \
+        .decode('ascii', 'ignore').replace('.', '-%s%s.' % (size, download_suffix))
+
+def local_download_path(photo, size, download_dir, download_suffix):
     # Strip any non-ascii characters.
-    filename = filename_with_size(photo, size)
+    filename = filename_with_size(photo, size, download_suffix)
     download_path = os.path.join(download_dir, filename)
 
     return download_path
